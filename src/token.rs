@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 /// Trait that refreshes a token when it is expired
 #[async_trait::async_trait]
-pub trait TokenCache: Sync {
+pub trait TokenCache: Sync + Send {
     /// Returns the token that is currently held within the instance of `TokenCache`, together with
     /// the expiry of that token as a u64 in seconds sine the Unix Epoch (1 Jan 1970).
     async fn token_and_exp(&self) -> Option<(String, u64)>;
