@@ -69,9 +69,17 @@ impl Display for DefaultTokenData {
     }
 }
 
+#[cfg(not(feature = "cloud-run"))]
 impl Default for Token {
     fn default() -> Self {
         Token::new("https://www.googleapis.com/auth/devstorage.full_control")
+    }
+}
+
+#[cfg(feature = "cloud-run")]
+impl Default for Token {
+    fn default() -> Self {
+        Token::new("https://www.googleapis.com/auth/cloud-platform")
     }
 }
 
@@ -99,6 +107,7 @@ impl TokenCache for Token {
         Ok(())
     }
 
+    #[cfg(not(feature = "cloud-run"))]
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)> {
         let now = now();
         let exp = now + 3600;
@@ -129,6 +138,22 @@ impl TokenCache for Token {
             .json()
             .await?;
         Ok((response.access_token, now + response.expires_in))
+    }
+
+
+    #[cfg(feature = "cloud-run")]
+    async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)> {
+        const CLOUD_RUN_TOKEN_URL: &str =
+            "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
+
+        let raw_token: TokenResponse = client.get(CLOUD_RUN_TOKEN_URL)
+            .header("MetaData-Flavor", "Google")
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        Ok((raw_token.access_token, now() + raw_token.expires_in))
     }
 }
 
