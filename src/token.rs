@@ -164,7 +164,11 @@ impl TokenCache for Token {
             .output()
             .await?;
 
-        let token = String::from_utf8(output.stdout).unwrap();
+        let mut token = String::from_utf8(output.stdout).unwrap();
+
+        if token.ends_with('\n') {
+            token.pop();
+        }
 
         println!("token: '{}'", token);
 
