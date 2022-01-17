@@ -166,6 +166,12 @@ impl TokenCache for Token {
 
         let token = String::from_utf8(output.stdout).unwrap();
 
+        println!("token: '{}'", token);
+
+        if !output.stderr.is_empty() {
+            println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+        }
+
         Ok((token, now() + 3600))
     }
 }
