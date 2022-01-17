@@ -164,16 +164,22 @@ impl TokenCache for Token {
             .output()
             .await?;
 
+        if !output.stderr.is_empty() {
+            return Err(crate::Error::Other(
+                String::from_utf8_lossy(&output.stderr).into_owned()
+            ));
+        }
+
+        if output.stdout.is_empty() {
+            return Err(crate::Error::Other(
+                "gcloud returned an empty string instead of a token".into()
+            ));
+        }
+
         let mut token = String::from_utf8(output.stdout).unwrap();
 
         if token.ends_with('\n') {
             token.pop();
-        }
-
-        println!("token: '{}'", token);
-
-        if !output.stderr.is_empty() {
-            println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
 
         Ok((token, now() + 3600))
