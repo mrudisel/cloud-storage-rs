@@ -107,7 +107,7 @@ impl TokenCache for Token {
         Ok(())
     }
 
-    #[cfg(not(feature = "cloud-run"))]
+    #[cfg(all(not(feature = "cloud-run"), not(feature = "gcloud-auth")))]
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)> {
         let now = now();
         let exp = now + 3600;
@@ -141,7 +141,7 @@ impl TokenCache for Token {
     }
 
 
-    #[cfg(feature = "cloud-run")]
+    #[cfg(all(feature = "cloud-run", not(feature = "gcloud-auth")))]
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)> {
         const CLOUD_RUN_TOKEN_URL: &str =
             "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
@@ -154,6 +154,19 @@ impl TokenCache for Token {
             .await?;
 
         Ok((raw_token.access_token, now() + raw_token.expires_in))
+    }
+
+    #[cfg(all(feature = "gcloud-auth", not(feature = "cloud-run")))]
+    async fn fetch_token(&self, _client: &reqwest::Client) -> crate::Result<(String, u64)> {
+        let output = tokio::process::Command::new("gcloud")
+            .arg("auth")
+            .arg("print-access-token")
+            .output()
+            .await?;
+
+        let token = String::from_utf8(output.stdout).unwrap();
+
+        Ok((token, now() + 3600))
     }
 }
 
