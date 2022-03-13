@@ -86,6 +86,7 @@
 //! # Ok(())
 //! # }
 //! ```
+#![feature(exact_size_is_empty, ready_macro)]
 #![forbid(unsafe_code, missing_docs)]
 
 pub mod client;

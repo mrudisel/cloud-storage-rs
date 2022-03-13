@@ -1,11 +1,111 @@
-use futures::{stream, Stream, TryStream};
+use std::pin::Pin;
+use std::task::{ready, Context, Poll};
+
+use futures::{stream, Stream, StreamExt, TryStreamExt, TryStream};
 use reqwest::StatusCode;
+use reqwest::header::HeaderValue;
 
 use crate::{
     error::GoogleResponse,
-    object::{percent_encode, ComposeRequest, ObjectList, RewriteResponse, SizedByteStream},
-    ListRequest, Object,
+    object::{
+        percent_encode,
+        ObjectMetadata,
+        ComposeRequest,
+        ObjectList,
+        RewriteResponse,
+        SizedByteStream,
+    },
+    ListRequest,
+    Object,
 };
+
+use const_format::formatcp;
+
+const BOUNDARY_STRING: &str = "MULTIPART_BOUNDARY";
+
+const MULTIPART_HEADER: HeaderValue
+    = HeaderValue::from_static(formatcp!("multipart/related; boundary={}", BOUNDARY_STRING));
+
+const BOUNDARY_SEPARATOR: &[u8] = formatcp!("--{}\n", BOUNDARY_STRING).as_bytes();
+const END_BOUNDARY: &[u8] = formatcp!("\n--{}--\n", BOUNDARY_STRING).as_bytes();
+
+
+#[derive(Debug)]
+struct MultipartRelatedStream<S> {
+    leading_meta: Option<bytes::Bytes>,
+    content_stream: Pin<DerefWrapper<S>>,
+    end_boundary: Option<bytes::Bytes>,
+}
+
+#[derive(Debug)]
+struct DerefWrapper<T>(T);
+
+impl<T> std::ops::Deref for DerefWrapper<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> std::ops::DerefMut for DerefWrapper<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/*
+impl<S> MultipartRelatedStream<S> {
+    fn new(metadata: ObjectMetadata, content_stream: S) -> crate::Result<Self> {
+        let mut leading_meta = BOUNDARY_SEPARATOR.to_vec();
+        leading_meta.extend_from_slice(b"Content-Type: application/json; charset=UTF-8\n\n");
+        serde_json::to_writer(&mut leading_meta, &metadata)?;
+
+        leading_meta.extend_from_slice(b"\n");
+        leading_meta.extend_from_slice(BOUNDARY_SEPARATOR);
+
+        if let Some(content_type) = metadata.content_type.as_ref().filter(|s| !s.is_empty()) {
+            leading_meta.extend_from_slice(b"Content-Type: ");
+            leading_meta.extend_from_slice(content_type.as_bytes());
+        }
+
+        leading_meta.extend_from_slice(b"\n");
+
+        Ok(Self {
+            content_stream: Pin::new(DerefWrapper(content_stream)),
+            leading_meta: Some(leading_meta.into()),
+            end_boundary: Some(END_BOUNDARY.into()),
+        })
+    }
+}
+
+impl<S> Stream for MultipartRelatedStream<S>
+where
+    S: TryStream + Send + Sync + 'static,
+    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    bytes::Bytes: From<S::Ok>,
+{
+    type Item = Result<bytes::Bytes, Box<dyn std::error::Error + Send + Sync>>;
+
+    fn poll_next(self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(leading_meta) = self.leading_meta.take() {
+            return Poll::Ready(Some(Ok(leading_meta)));
+        }
+
+        match ready!(self.content_stream.as_mut().try_poll_next(ctx)) {
+            Some(Ok(chunk)) => Poll::Ready(Some(Ok(chunk.into()))),
+            Some(Err(error)) => Poll::Ready(Some(Err(error.into()))),
+            None => {
+                match self.end_boundary.take() {
+                    Some(end_boundary) => Poll::Ready(Some(Ok(end_boundary))),
+                    None => Poll::Ready(None),
+                }
+            }
+        }
+    }
+}
+
+*/
 
 // Object uploads has its own url for some reason
 const BASE_URL: &str = "https://storage.googleapis.com/upload/storage/v1/b";
@@ -126,6 +226,51 @@ impl<'a> ObjectClient<'a> {
             Err(crate::Error::new(&response.text().await?))
         }
     }
+
+    /*
+    pub async fn create_streamed_with_metadata<S>(
+        &self,
+        bucket: &str,
+        stream: S,
+        length: impl Into<Option<u64>>,
+        metadata: ObjectMetadata,
+    ) -> crate::Result<Object>
+    where
+        S: TryStream + Send + Sync + 'static,
+        S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+        bytes::Bytes: From<S::Ok>,
+    {
+
+        use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE};
+
+        let url = &format!(
+            "{}/{}/o?uploadType=multipart",
+            BASE_URL,
+            percent_encode(bucket),
+        );
+        let mut headers = self.0.get_headers().await?;
+        headers.insert(CONTENT_TYPE, MULTIPART_HEADER);
+        if let Some(length) = length.into() {
+            headers.insert(CONTENT_LENGTH, length.into());
+        }
+
+        let stream = MultipartRelatedStream::new(metadata, stream)?;
+        let body = reqwest::Body::wrap_stream(stream);
+        let response = self
+            .0
+            .client
+            .post(url)
+            .headers(headers)
+            .body(body)
+            .send()
+            .await?;
+        if response.status() == 200 {
+            Ok(serde_json::from_str(&response.text().await?)?)
+        } else {
+            Err(crate::Error::new(&response.text().await?))
+        }
+    }
+    */
 
     /// Obtain a list of objects within this Bucket.
     /// ### Example

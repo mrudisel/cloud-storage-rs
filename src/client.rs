@@ -36,24 +36,32 @@ impl fmt::Debug for Client {
 
 impl Default for Client {
     fn default() -> Self {
-        Self {
-            client: Default::default(),
-            token_cache: Box::new(crate::Token::default()),
-        }
+        Self::new()
     }
 }
 
 impl Client {
     /// Constructs a client with the default token provider, where it attemps to obtain the
     /// credentials from the following locations:
-    /// 
+    ///
     /// 1. Checks for the environment variable `SERVICE_ACCOUNT`, and if it exists, reads the file
     /// at the path specified there as a credentials json file.
     /// 2. It attemps to do the same with the `GOOGLE_APPLICATION_CREDENTIALS` var.
     /// 3. It reads the `SERVICE_ACCOUNT_JSON` environment variable directly as json and uses that
     /// 4. It attemps to do the same with the `GOOGLE_APPLICATION_CREDENTIALS_JSON` var.
     pub fn new() -> Self {
-        Default::default()
+        #[cfg(feature = "reqwest/trust-dns")]
+        let client = reqwest::Client::builder()
+            .trust_dns()
+            .build()
+            .expect("could not build reqwest client");
+
+        #[cfg(not(feature = "reqwest/trust-dns"))]
+        let client = reqwest::Client::builder()
+            .build()
+            .expect("could not build reqwest client");
+
+        Self { client, token_cache: Box::new(crate::Token::default()) }
     }
 
     /// Initializer with a provided refreshable token

@@ -6,6 +6,85 @@ use futures::TryStream;
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::collections::HashMap;
 
+
+fn none_or_empty<T, I>(option: &Option<T>) -> bool
+where
+    T: AsRef<[I]>
+{
+    option.as_ref()
+        .map(|inner| inner.as_ref().is_empty())
+        .unwrap_or(true)
+}
+
+
+fn none_or_empty_iter<'a, I, T>(option: &'a Option<I>) -> bool
+where
+    T: 'a,
+    &'a I: IntoIterator<Item = T>,
+    <&'a I as IntoIterator>::IntoIter: ExactSizeIterator,
+{
+    option.as_ref()
+        .map(|inner| inner.into_iter().is_empty())
+        .unwrap_or(true)
+}
+
+
+
+/// Object Metadata
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectMetadata {
+    /// Access controls on the object, containing one or more objectAccessControls Resources. If
+    /// iamConfiguration.uniformBucketLevelAccess.enabled is set to true, this field is omitted in
+    /// responses, and requests that specify this field fail.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub acl: Option<Vec<ObjectAccessControl>>,
+    /// Cache-Control directive for the object data. If omitted, and the object is accessible to all
+    /// anonymous users, the default will be public, max-age=3600.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub cache_control: Option<String>,
+    /// Content-Disposition of the object data.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub content_disposition: Option<String>,
+    /// Content-Encoding of the object data.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub content_encoding: Option<String>,
+    /// Content-Language of the object data.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub content_language: Option<String>,
+    /// Content-Type of the object data. If an object is stored without a Content-Type, it is served
+    /// as application/octet-stream.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub content_type: Option<String>,
+    /// CRC32c checksum, as described in RFC 4960, Appendix B; encoded using base64 in big-endian
+    /// byte order. For more information about using the CRC32c checksum, see Hashes and ETags:
+    /// Best Practices.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub crc32c: Option<String>,
+    /// A user-specified timestamp for the object in RFC 3339 format.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_time: Option<chrono::DateTime<chrono::Utc>>,
+    /// Whether or not the object is subject to an event-based hold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_based_hold: Option<bool>,
+    /// MD5 hash of the data; encoded using base64. For more information about using the MD5 hash,
+    /// see Hashes and ETags: Best Practices.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub md5_hash: Option<String>,
+    /// User-provided metadata, in key/value pairs.
+    #[serde(skip_serializing_if = "none_or_empty_iter")]
+    pub metadata: Option<std::collections::HashMap<String, String>>,
+    /// The name of the object. Required if not specified by URL parameter.
+    pub name: String,
+    /// Storage class of the object.
+    #[serde(skip_serializing_if = "none_or_empty")]
+    pub storage_class: Option<String>,
+    /// Whether or not the object is subject to a temporary hold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temporary_hold: Option<bool>,
+}
+
+
 /// A resource representing a file in Google Cloud Storage.
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -314,6 +393,26 @@ impl Object {
             .create_streamed(bucket, stream, length, filename, mime_type)
             .await
     }
+
+    #[cfg(feature = "global-client")]
+    pub async fn create_streamed_with_metadata<S>(
+        &self,
+        bucket: &str,
+        stream: S,
+        length: impl Into<Option<u64>>,
+        metadata: ObjectMetadata,
+    ) -> crate::Result<Object>
+    where
+        S: TryStream + Send + Sync + 'static,
+        S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+        bytes::Bytes: From<S::Ok>,
+    {
+        crate::CLOUD_CLIENT
+            .object()
+            .create_streamed_with_metadata(bucket, stream, length, metadata)
+            .await
+    }
+
 
     /// The synchronous equivalent of `Object::create_streamed`.
     ///
