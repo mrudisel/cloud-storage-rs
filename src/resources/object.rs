@@ -394,6 +394,7 @@ impl Object {
             .await
     }
 
+    /*
     #[cfg(feature = "global-client")]
     pub async fn create_streamed_with_metadata<S>(
         &self,
@@ -412,6 +413,7 @@ impl Object {
             .create_streamed_with_metadata(bucket, stream, length, metadata)
             .await
     }
+    */
 
 
     /// The synchronous equivalent of `Object::create_streamed`.
