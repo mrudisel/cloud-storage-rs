@@ -1,5 +1,5 @@
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+
 
 use futures::{stream, Stream, StreamExt, TryStreamExt, TryStream};
 use reqwest::StatusCode;
@@ -9,7 +9,6 @@ use crate::{
     error::GoogleResponse,
     object::{
         percent_encode,
-        ObjectMetadata,
         ComposeRequest,
         ObjectList,
         RewriteResponse,
@@ -467,7 +466,7 @@ impl<'a> ObjectClient<'a> {
         bucket: &str,
         file_name: &str,
     ) -> crate::Result<impl Stream<Item = crate::Result<u8>> + Unpin> {
-        use futures::{StreamExt, TryStreamExt};
+        use futures::TryStreamExt;
         let url = format!(
             "{}/b/{}/o/{}?alt=media",
             crate::BASE_URL,
@@ -488,6 +487,35 @@ impl<'a> ObjectClient<'a> {
             .map(|chunk| chunk.map(|c| futures::stream::iter(c.into_iter().map(Ok))))
             .try_flatten();
         Ok(SizedByteStream::new(bytes, size))
+    }
+
+    /// Downloads an item via a stream, but yeilds chunks instead of a single byte at a time.
+    pub async fn download_streamed_chunks(
+        &self,
+        bucket: &str,
+        file_name: &str,
+    ) -> crate::Result<impl Stream<Item = crate::Result<bytes::Bytes>> + Unpin> {
+        use futures::TryStreamExt;
+        let url = format!(
+            "{}/b/{}/o/{}?alt=media",
+            crate::BASE_URL,
+            percent_encode(bucket),
+            percent_encode(file_name),
+        );
+        let response = self
+            .0
+            .client
+            .get(&url)
+            .headers(self.0.get_headers().await?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let bytes = response
+            .bytes_stream()
+            .map(|chunk| chunk.map_err(crate::Error::from));
+
+        Ok(bytes)
     }
 
     /// Obtains a single object with the specified name in the specified bucket.

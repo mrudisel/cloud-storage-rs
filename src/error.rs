@@ -25,6 +25,13 @@ pub enum Error {
     Other(String),
 }
 
+
+impl From<gcp_auth::Error> for Error {
+    fn from(gcp_err: gcp_auth::Error) -> Self {
+        Self::Other(gcp_err.to_string())
+    }
+}
+
 impl Error {
     pub(crate) fn new(msg: &str) -> Error {
         Error::Other(msg.to_string())

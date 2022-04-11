@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use tokio::sync::RwLock;
 
 /// Trait that refreshes a token when it is expired
 #[async_trait::async_trait]
@@ -32,6 +33,56 @@ pub trait TokenCache: Sync + Send {
 
     /// Fetches and returns the token using the service account
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)>;
+}
+
+
+pub struct GcpAuthManager {
+    manager: gcp_auth::AuthenticationManager,
+    cache: RwLock<Option<(String, u64)>>,
+}
+
+impl GcpAuthManager {
+    const SCOPE: &'static str = "https://www.googleapis.com/auth/devstorage.full_control";
+
+    pub async fn new() -> crate::Result<Self> {
+        let manager = gcp_auth::AuthenticationManager::new().await?;
+
+        Ok(Self { manager, cache: RwLock::new(None) })
+    }
+}
+
+
+#[async_trait::async_trait]
+impl TokenCache for GcpAuthManager {
+    async fn token_and_exp(&self) -> Option<(String, u64)> {
+        self.cache.read().await.clone()
+    }
+
+    async fn set_token(&self, token: String, exp: u64) -> crate::Result<()> {
+        let mut write_guard = self.cache.write().await;
+
+        *write_guard = Some((token, exp));
+
+        Ok(())
+    }
+
+    /// Returns the intended scope for the current token.
+    async fn scope(&self) -> String {
+        Self::SCOPE.to_owned()
+    }
+
+    /// Fetches and returns the token using the service account
+    async fn fetch_token(&self, _: &reqwest::Client) -> crate::Result<(String, u64)> {
+        let token = self.manager.get_token(&[Self::SCOPE]).await?;
+
+        let expires_in = token.expires_at()
+            .map(|time| time.unix_timestamp() as u64 - now())
+            .unwrap_or(3600);
+
+        let token_string = token.as_str().to_owned();
+
+        Ok((token_string, expires_in))
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -107,7 +158,7 @@ impl TokenCache for Token {
         Ok(())
     }
 
-    #[cfg(all(not(feature = "cloud-run"), not(feature = "gcloud-auth")))]
+    #[cfg(all(not(feature = "cloud-run"), not(feature = "gcloud-auth"), feature = "rustls-tls"))]
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)> {
         let now = now();
         let exp = now + 3600;

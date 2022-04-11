@@ -560,6 +560,17 @@ impl Object {
             .await
     }
 
+    /// Same as download streamed, but yields chunks instead of a single byte at a time.
+    pub async fn download_streamed_chunks(
+        bucket: &str,
+        file_name: &str,
+    ) -> crate::Result<impl Stream<Item = crate::Result<bytes::Bytes>> + Unpin> {
+        crate::CLOUD_CLIENT
+            .object()
+            .download_streamed_chunks(bucket, file_name)
+            .await
+    }
+
     /// Obtains a single object with the specified name in the specified bucket.
     /// ### Example
     /// ```no_run
@@ -835,7 +846,7 @@ impl Object {
         let url = self.sign(&self.name, duration, "PUT", None, &custom_metadata)?;
         let mut headers = HashMap::new();
         for (k, v) in custom_metadata.iter() {
-            headers.insert(format!("x-goog-meta-{}", k.to_string()), v.to_string());
+            headers.insert(format!("x-goog-meta-{}", k), v.to_string());
         }
         Ok((url, headers))
     }
@@ -868,7 +879,7 @@ impl Object {
         let mut headers = vec![("host".to_string(), "storage.googleapis.com".to_string())];
         // Add custom metadata headers, guaranteed unique by HashMap input
         for (k, v) in custom_metadata.iter() {
-            headers.push((format!("x-goog-meta-{}", k.to_string()), v.to_string()));
+            headers.push((format!("x-goog-meta-{}", k), v.to_string()));
         }
         headers.sort_unstable_by(|(k1, _), (k2, _)| k1.cmp(k2));
         let canonical_headers: String = headers
@@ -1316,7 +1327,7 @@ mod tests {
         ];
         for name in &complicated_names {
             let _obj = Object::create(&bucket.name, vec![0, 1], name, "text/plain").await?;
-            let obj = Object::read(&bucket.name, &name).await.unwrap();
+            let obj = Object::read(&bucket.name, name).await.unwrap();
             let url = obj.download_url(100)?;
             let client = reqwest::Client::default();
             let download = client.head(&url).send().await?;
