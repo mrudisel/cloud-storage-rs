@@ -466,7 +466,6 @@ impl<'a> ObjectClient<'a> {
         bucket: &str,
         file_name: &str,
     ) -> crate::Result<impl Stream<Item = crate::Result<u8>> + Unpin> {
-        use futures::TryStreamExt;
         let url = format!(
             "{}/b/{}/o/{}?alt=media",
             crate::BASE_URL,
@@ -486,6 +485,7 @@ impl<'a> ObjectClient<'a> {
             .bytes_stream()
             .map(|chunk| chunk.map(|c| futures::stream::iter(c.into_iter().map(Ok))))
             .try_flatten();
+
         Ok(SizedByteStream::new(bytes, size))
     }
 

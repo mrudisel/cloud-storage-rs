@@ -561,6 +561,7 @@ impl Object {
     }
 
     /// Same as download streamed, but yields chunks instead of a single byte at a time.
+    #[cfg(feature = "global-client")]
     pub async fn download_streamed_chunks(
         bucket: &str,
         file_name: &str,

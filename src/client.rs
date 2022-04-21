@@ -64,6 +64,43 @@ impl Client {
         Self { client, token_cache: Box::new(crate::Token::default()) }
     }
 
+    /// Initializes a new client, using [`gcp_auth`] as the authentication backend.
+    pub async fn new_gcp_auth() -> crate::Result<Self> {
+        let manager = crate::token::GcpAuthManager::new().await?;
+
+        #[cfg(feature = "reqwest/trust-dns")]
+        let client = reqwest::Client::builder()
+            .trust_dns()
+            .build()
+            .expect("could not build reqwest client");
+
+        #[cfg(not(feature = "reqwest/trust-dns"))]
+        let client = reqwest::Client::builder()
+            .build()
+            .expect("could not build reqwest client");
+
+        Ok(Self { client, token_cache: Box::new(manager) })
+    }
+
+    /// Initializes a new client from an existing instance of [`gcp_auth::AuthenticationManager`].
+    pub fn from_gcp_auth<A>(auth: A) -> Self
+    where
+        A: Into<crate::token::GcpAuthManager>
+    {
+        #[cfg(feature = "reqwest/trust-dns")]
+        let client = reqwest::Client::builder()
+            .trust_dns()
+            .build()
+            .expect("could not build reqwest client");
+
+        #[cfg(not(feature = "reqwest/trust-dns"))]
+        let client = reqwest::Client::builder()
+            .build()
+            .expect("could not build reqwest client");
+
+        Self { client, token_cache: Box::new(auth.into()) }
+    }
+
     /// Initializer with a provided refreshable token
     pub fn with_cache(token: impl TokenCache + 'static) -> Self {
         Self {
@@ -103,7 +140,7 @@ impl Client {
     }
 
     async fn get_headers(&self) -> crate::Result<reqwest::header::HeaderMap> {
-        let mut result = reqwest::header::HeaderMap::new();
+        let mut result = reqwest::header::HeaderMap::with_capacity(1);
         let token = self.token_cache.get(&self.client).await?;
         result.insert(
             reqwest::header::AUTHORIZATION,

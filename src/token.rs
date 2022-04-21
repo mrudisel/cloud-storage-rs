@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Trait that refreshes a token when it is expired
@@ -37,8 +38,8 @@ pub trait TokenCache: Sync + Send {
 
 
 pub struct GcpAuthManager {
-    manager: gcp_auth::AuthenticationManager,
-    cache: RwLock<Option<(String, u64)>>,
+    manager: Arc<gcp_auth::AuthenticationManager>,
+    cache: RwLock<Option<Arc<gcp_auth::Token>>>,
 }
 
 impl GcpAuthManager {
@@ -47,22 +48,81 @@ impl GcpAuthManager {
     pub async fn new() -> crate::Result<Self> {
         let manager = gcp_auth::AuthenticationManager::new().await?;
 
-        Ok(Self { manager, cache: RwLock::new(None) })
+        Ok(Self { manager: Arc::new(manager), cache: RwLock::new(None) })
     }
+
+    async fn get_current_token(&self) -> Option<Arc<gcp_auth::Token>> {
+        if let Some(token) = self.cache.read().await.as_ref() {
+            if !token.has_expired() {
+                return Some(token.clone());
+            }
+        }
+
+        None
+    }
+
+    pub async fn get_token(&self) -> crate::Result<Arc<gcp_auth::Token>> {
+        if let Some(token) = self.get_current_token().await {
+            return Ok(token);
+        }
+
+        let mut write_lock = self.cache.write().await;
+
+        // see if another thread updated the token while waiting for the lock, bail early if so
+        if let Some(token) = write_lock.as_ref() {
+            if !token.has_expired() {
+                return Ok(token.clone());
+            }
+        }
+
+        let new_token = self.manager.get_token(&[Self::SCOPE])
+            .await
+            .map(Arc::new)?;
+
+        *write_lock = Some(new_token.clone());
+
+        Ok(new_token)
+    }
+}
+
+impl From<gcp_auth::AuthenticationManager> for GcpAuthManager {
+    fn from(manager: gcp_auth::AuthenticationManager) -> Self {
+        Self { manager: Arc::new(manager), cache: RwLock::new(None) }
+    }
+}
+
+
+impl From<Arc<gcp_auth::AuthenticationManager>> for GcpAuthManager {
+    fn from(manager: Arc<gcp_auth::AuthenticationManager>) -> Self {
+        Self { manager, cache: RwLock::new(None) }
+    }
+}
+
+fn format_token(token: &gcp_auth::Token) -> Option<(String, u64)> {
+    if token.has_expired() {
+        return None;
+    }
+
+    let token_string = token.as_str().to_owned();
+
+    let expiry_timestamp = match token.expires_at() {
+        Some(datetime) => datetime.unix_timestamp() as u64,
+        // add a small number of seconds to attempt using this token
+        None => now() + 60,
+    };
+
+    Some((token_string, expiry_timestamp))
 }
 
 
 #[async_trait::async_trait]
 impl TokenCache for GcpAuthManager {
     async fn token_and_exp(&self) -> Option<(String, u64)> {
-        self.cache.read().await.clone()
+        let token = self.get_current_token().await?;
+        format_token(&token)
     }
 
-    async fn set_token(&self, token: String, exp: u64) -> crate::Result<()> {
-        let mut write_guard = self.cache.write().await;
-
-        *write_guard = Some((token, exp));
-
+    async fn set_token(&self, _token: String, _exp: u64) -> crate::Result<()> {
         Ok(())
     }
 
@@ -73,15 +133,16 @@ impl TokenCache for GcpAuthManager {
 
     /// Fetches and returns the token using the service account
     async fn fetch_token(&self, _: &reqwest::Client) -> crate::Result<(String, u64)> {
-        let token = self.manager.get_token(&[Self::SCOPE]).await?;
+        let token = self.get_token().await?;
 
-        let expires_in = token.expires_at()
-            .map(|time| time.unix_timestamp() as u64 - now())
-            .unwrap_or(3600);
+        // get_token should never return an expired token, so this should always be 'Ok'
+        format_token(&token)
+            .ok_or_else(|| crate::Error::new("unexpectedly found expired token"))
+    }
 
-        let token_string = token.as_str().to_owned();
-
-        Ok((token_string, expires_in))
+    async fn get(&self, _: &reqwest::Client) -> crate::Result<String> {
+        let token = self.get_token().await?;
+        Ok(token.as_str().to_owned())
     }
 }
 
