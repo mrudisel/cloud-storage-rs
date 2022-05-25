@@ -12,6 +12,10 @@ readme = "README.md"
 categories = ["api-bindings", "web-programming"]
 # maintenance = { status = "actively-developed" }
 
+[lib]
+test = false
+doctest = false
+
 [features]
 default = ["rustls-tls"]
 
@@ -25,28 +29,47 @@ cloud-run = []
 gcloud-auth = ["tokio/process"]
 
 [dependencies]
-gcp_auth =         { version = "0.7.2", features = [] }
-reqwest =          { version = "0.11.10", default-features = false, features = ["json", "stream"] }
+async-compression = { version = "0.3.12", features = ["brotli", "gzip", "tokio", "zlib"], default-features = false }
+async-trait = { version = "0.1.53", default-features = false }
+base64 = { version = "0.13.0", default-features = false }
+bytes = { version = "1.1.0", features = ["serde"] }
+cc = { version = "1.0.73", features = ["parallel"], default-features = false }
+chrono = { version = "0.4.19", features = ["alloc", "serde"] }
+const_format = { version = "0.2.22", features = ["const_generics"] }
+dotenv = { version = "0.15.0", default-features = false }
+futures = { version = "0.3.21" }
+futures-io = { version = "0.3.21", features = ["std"], default-features = false }
+futures-util = { version = "0.3.21", features = ["channel", "io", "sink"] }
+gcp_auth = { version = "0.7.2", features = [] }
+getrandom = { version = "0.2.5", features = ["js", "rdrand", "std"], default-features = false }
+hex = { version = "0.4.3" }
+hyper = { version = "0.14.18", features = ["full"] }
+jsonwebtoken = { version = "8.1.0", default-features = false }
+lazy_static = { version = "1.4.0", default-features = false }
+log = { version = "0.4.16", features = ["std"], default-features = false }
+memchr = { version = "2.4.1", features = ["use_std"] }
+miniz_oxide = { version = "0.5.1" }
+mio = { version = "0.8.2", features = ["net", "os-ext"] }
+num-bigint = { version = "0.4.3" }
+num-integer = { version = "0.1.44", features = ["i128", "std"], default-features = false }
+num-traits = { version = "0.2.14", features = ["i128"] }
+openssl = { version = "0.10.38", default-features = false, optional = true }
+parking_lot = { version = "0.12.0", features = ["send_guard"] }
+pem = { version = "1.0.2", default-features = false, optional = true }
 percent-encoding = { version = "2.1.0", default-features = false }
-jsonwebtoken =     { version = "8.1.0", default-features = false }
-serde =            { version = "1.0.136", default-features = false, features = ["derive"] }
-serde_json =       { version = "1.0.79", default-features = false }
-base64 =           { version = "0.13.0", default-features = false }
-lazy_static =      { version = "1.4.0", default-features = false }
-dotenv =           { version = "0.15.0", default-features = false }
-openssl =          { version = "0.10.38", default-features = false, optional = true }
-ring =             { version = "0.16.20", default-features = false, optional = true }
-pem =              { version = "1.0.2", default-features = false, optional = true }
-chrono =           { version = "0.4.19", default-features = false, features = ["serde", "alloc", "clock"] }
-hex =              { version = "0.4.3", default-features = false, features = ["alloc"] }
-tokio =            { version = "1.17.0", default-features = false, features = ["macros", "rt"] }
-futures =          { version = "0.3.21", default_features = false, features = ["alloc"] }
-bytes =            { version = "1.1.0", default-features = false }
-async-trait =      { version = "0.1.53", default-features = false }
-const_format = "0.2.22"
+proc-macro2 = { version = "1.0.37", features = ["span-locations"] }
+rand = { version = "0.8.5", features = ["small_rng"] }
+rand_core = { version = "0.6.3", features = ["std"], default-features = false }
+reqwest = { version = "0.11.10", features = ["blocking", "brotli", "deflate", "gzip", "json", "native-tls", "rustls-tls", "stream"] }
+ring = { version = "0.16.20", default-features = false, optional = true }
+serde = { version = "1.0.137", features = ["alloc", "derive", "rc"] }
+serde_json = { version = "1.0.81", features = ["raw_value"] }
+smallvec = { version = "1.8.0", features = ["const_new"], default-features = false }
+time = { version = "0.3.9", features = ["macros", "quickcheck", "serde-human-readable"] }
+tokio = { version = "1.18.1", features = ["full"] }
+tracing = { version = "0.1.34", features = ["log", "valuable"] }
+tracing-core = { version = "0.1.26", features = ["valuable"] }
+url = { version = "2.2.2", features = ["serde"], default-features = false }
 
 [dev-dependencies]
-tokio =            { version = "1.17.0", default-features = false, features = ["full"] }
-
-[package.metadata.docs.rs]
-features = ["global-client", "sync"]
+tokio = { version = "1.17.0", default-features = false, features = ["full"] }
