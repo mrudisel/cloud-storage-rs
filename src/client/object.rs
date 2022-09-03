@@ -1,35 +1,31 @@
 use std::pin::Pin;
 
-
-use futures::{stream, Stream, StreamExt, TryStreamExt, TryStream};
-use reqwest::StatusCode;
-use reqwest::header::HeaderValue;
+use futures::{stream, Stream, StreamExt, TryStream, TryStreamExt};
+use reqwest::{header::HeaderValue, StatusCode};
 
 use crate::{
     error::GoogleResponse,
-    object::{
-        percent_encode,
-        ComposeRequest,
-        ObjectList,
-        RewriteResponse,
-        SizedByteStream,
-    },
-    ListRequest,
-    Object,
+    object::{percent_encode, ComposeRequest, ObjectList, RewriteResponse, SizedByteStream},
+    ListRequest, Object,
 };
 
 use const_format::formatcp;
 
+#[allow(dead_code)]
 const BOUNDARY_STRING: &str = "MULTIPART_BOUNDARY";
 
-const MULTIPART_HEADER: HeaderValue
-    = HeaderValue::from_static(formatcp!("multipart/related; boundary={}", BOUNDARY_STRING));
+#[allow(dead_code)]
+const MULTIPART_HEADER: HeaderValue =
+    HeaderValue::from_static(formatcp!("multipart/related; boundary={}", BOUNDARY_STRING));
 
+#[allow(dead_code)]
 const BOUNDARY_SEPARATOR: &[u8] = formatcp!("--{}\n", BOUNDARY_STRING).as_bytes();
+
+#[allow(dead_code)]
 const END_BOUNDARY: &[u8] = formatcp!("\n--{}--\n", BOUNDARY_STRING).as_bytes();
 
-
 #[derive(Debug)]
+#[allow(dead_code)]
 struct MultipartRelatedStream<S> {
     leading_meta: Option<bytes::Bytes>,
     content_stream: Pin<DerefWrapper<S>>,
@@ -495,7 +491,6 @@ impl<'a> ObjectClient<'a> {
         bucket: &str,
         file_name: &str,
     ) -> crate::Result<impl Stream<Item = crate::Result<bytes::Bytes>> + Unpin> {
-        use futures::TryStreamExt;
         let url = format!(
             "{}/b/{}/o/{}?alt=media",
             crate::BASE_URL,
@@ -738,7 +733,7 @@ impl<'a> ObjectClient<'a> {
         );
         let mut headers = self.0.get_headers().await?;
         headers.insert(CONTENT_LENGTH, "0".parse()?);
-        let s =  self
+        let s = self
             .0
             .client
             .post(&url)
@@ -751,8 +746,8 @@ impl<'a> ObjectClient<'a> {
         let result: RewriteResponse = serde_json::from_str(dbg!(&s)).unwrap();
         Ok(result.resource)
         // match result {
-            // GoogleResponse::Success(s) => Ok(s.resource),
-            // GoogleResponse::Error(e) => Err(e.into()),
+        // GoogleResponse::Success(s) => Ok(s.resource),
+        // GoogleResponse::Error(e) => Err(e.into()),
         // }
     }
 }

@@ -1,5 +1,7 @@
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
+use std::{
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
 use tokio::sync::RwLock;
 
 /// Trait that refreshes a token when it is expired
@@ -36,7 +38,6 @@ pub trait TokenCache: Sync + Send {
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)>;
 }
 
-
 pub struct GcpAuthManager {
     manager: Arc<gcp_auth::AuthenticationManager>,
     cache: RwLock<Option<Arc<gcp_auth::Token>>>,
@@ -48,7 +49,10 @@ impl GcpAuthManager {
     pub async fn new() -> crate::Result<Self> {
         let manager = gcp_auth::AuthenticationManager::new().await?;
 
-        Ok(Self { manager: Arc::new(manager), cache: RwLock::new(None) })
+        Ok(Self {
+            manager: Arc::new(manager),
+            cache: RwLock::new(None),
+        })
     }
 
     async fn get_current_token(&self) -> Option<Arc<gcp_auth::Token>> {
@@ -75,9 +79,7 @@ impl GcpAuthManager {
             }
         }
 
-        let new_token = self.manager.get_token(&[Self::SCOPE])
-            .await
-            .map(Arc::new)?;
+        let new_token = self.manager.get_token(&[Self::SCOPE]).await.map(Arc::new)?;
 
         *write_lock = Some(new_token.clone());
 
@@ -87,14 +89,19 @@ impl GcpAuthManager {
 
 impl From<gcp_auth::AuthenticationManager> for GcpAuthManager {
     fn from(manager: gcp_auth::AuthenticationManager) -> Self {
-        Self { manager: Arc::new(manager), cache: RwLock::new(None) }
+        Self {
+            manager: Arc::new(manager),
+            cache: RwLock::new(None),
+        }
     }
 }
 
-
 impl From<Arc<gcp_auth::AuthenticationManager>> for GcpAuthManager {
     fn from(manager: Arc<gcp_auth::AuthenticationManager>) -> Self {
-        Self { manager, cache: RwLock::new(None) }
+        Self {
+            manager,
+            cache: RwLock::new(None),
+        }
     }
 }
 
@@ -113,7 +120,6 @@ fn format_token(token: &gcp_auth::Token) -> Option<(String, u64)> {
 
     Some((token_string, expiry_timestamp))
 }
-
 
 #[async_trait::async_trait]
 impl TokenCache for GcpAuthManager {
@@ -136,8 +142,7 @@ impl TokenCache for GcpAuthManager {
         let token = self.get_token().await?;
 
         // get_token should never return an expired token, so this should always be 'Ok'
-        format_token(&token)
-            .ok_or_else(|| crate::Error::new("unexpectedly found expired token"))
+        format_token(&token).ok_or_else(|| crate::Error::new("unexpectedly found expired token"))
     }
 
     async fn get(&self, _: &reqwest::Client) -> crate::Result<String> {
@@ -219,7 +224,11 @@ impl TokenCache for Token {
         Ok(())
     }
 
-    #[cfg(all(not(feature = "cloud-run"), not(feature = "gcloud-auth"), feature = "rustls-tls"))]
+    #[cfg(all(
+        not(feature = "cloud-run"),
+        not(feature = "gcloud-auth"),
+        feature = "rustls-tls"
+    ))]
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)> {
         let now = now();
         let exp = now + 3600;
@@ -252,13 +261,13 @@ impl TokenCache for Token {
         Ok((response.access_token, now + response.expires_in))
     }
 
-
     #[cfg(all(feature = "cloud-run", not(feature = "gcloud-auth")))]
     async fn fetch_token(&self, client: &reqwest::Client) -> crate::Result<(String, u64)> {
         const CLOUD_RUN_TOKEN_URL: &str =
             "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
 
-        let raw_token: TokenResponse = client.get(CLOUD_RUN_TOKEN_URL)
+        let raw_token: TokenResponse = client
+            .get(CLOUD_RUN_TOKEN_URL)
             .header("MetaData-Flavor", "Google")
             .send()
             .await?
@@ -278,13 +287,13 @@ impl TokenCache for Token {
 
         if !output.stderr.is_empty() {
             return Err(crate::Error::Other(
-                String::from_utf8_lossy(&output.stderr).into_owned()
+                String::from_utf8_lossy(&output.stderr).into_owned(),
             ));
         }
 
         if output.stdout.is_empty() {
             return Err(crate::Error::Other(
-                "gcloud returned an empty string instead of a token".into()
+                "gcloud returned an empty string instead of a token".into(),
             ));
         }
 

@@ -6,16 +6,15 @@ use futures::TryStream;
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::collections::HashMap;
 
-
 fn none_or_empty<T, I>(option: &Option<T>) -> bool
 where
-    T: AsRef<[I]>
+    T: AsRef<[I]>,
 {
-    option.as_ref()
+    option
+        .as_ref()
         .map(|inner| inner.as_ref().is_empty())
         .unwrap_or(true)
 }
-
 
 fn none_or_empty_iter<'a, I, T>(option: &'a Option<I>) -> bool
 where
@@ -23,12 +22,11 @@ where
     &'a I: IntoIterator<Item = T>,
     <&'a I as IntoIterator>::IntoIter: ExactSizeIterator,
 {
-    option.as_ref()
+    option
+        .as_ref()
         .map(|inner| inner.into_iter().is_empty())
         .unwrap_or(true)
 }
-
-
 
 /// Object Metadata
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -83,7 +81,6 @@ pub struct ObjectMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temporary_hold: Option<bool>,
 }
-
 
 /// A resource representing a file in Google Cloud Storage.
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -414,7 +411,6 @@ impl Object {
             .await
     }
     */
-
 
     /// The synchronous equivalent of `Object::create_streamed`.
     ///

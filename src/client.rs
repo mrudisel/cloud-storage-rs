@@ -61,7 +61,10 @@ impl Client {
             .build()
             .expect("could not build reqwest client");
 
-        Self { client, token_cache: Box::new(crate::Token::default()) }
+        Self {
+            client,
+            token_cache: Box::new(crate::Token::default()),
+        }
     }
 
     /// Initializes a new client, using [`gcp_auth`] as the authentication backend.
@@ -79,13 +82,16 @@ impl Client {
             .build()
             .expect("could not build reqwest client");
 
-        Ok(Self { client, token_cache: Box::new(manager) })
+        Ok(Self {
+            client,
+            token_cache: Box::new(manager),
+        })
     }
 
     /// Initializes a new client from an existing instance of [`gcp_auth::AuthenticationManager`].
     pub fn from_gcp_auth<A>(auth: A) -> Self
     where
-        A: Into<crate::token::GcpAuthManager>
+        A: Into<crate::token::GcpAuthManager>,
     {
         #[cfg(feature = "reqwest/trust-dns")]
         let client = reqwest::Client::builder()
@@ -98,7 +104,10 @@ impl Client {
             .build()
             .expect("could not build reqwest client");
 
-        Self { client, token_cache: Box::new(auth.into()) }
+        Self {
+            client,
+            token_cache: Box::new(auth.into()),
+        }
     }
 
     /// Initializer with a provided refreshable token
